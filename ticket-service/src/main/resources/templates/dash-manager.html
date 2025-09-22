@@ -1,10 +1,23 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Title</title>
-</head>
+<!doctype html><html><head><meta charset="UTF-8"><title>Manager</title></head>
 <body>
-<h1>Welcome, MANAGER</h1>
-</body>
-</html>
+<h3>Manager Dashboard</h3>
+<a href="/logout">Logout</a><hr>
+
+<label>Ticket ID <input id="tid" placeholder="id"></label>
+<label>Comments <input id="cmt" value="approved"></label>
+<button id="btnApprove">Approve</button>
+<button id="btnReject">Reject</button>
+<button id="btnGet">Get</button>
+
+<pre id="out" style="background:#f5f5f5;padding:8px"></pre>
+
+<script>
+    const out=document.getElementById('out'), tid=document.getElementById('tid'), cmt=document.getElementById('cmt');
+    tid.value = localStorage.lastTicketId || '';
+    function show(x){ out.textContent=JSON.stringify(x,null,2); if(x&&x.id){tid.value=x.id; localStorage.lastTicketId=x.id;} }
+    async function api(p,m='GET',b){ const r=await fetch(p,{method:m,headers:{'Content-Type':'application/json'},body:b?JSON.stringify(b):undefined}); if(!r.ok){show({error:r.status,text:await r.text()}); throw 0;} return r.json(); }
+    btnApprove.onclick = async ()=> show(await api(`/api/tickets/${tid.value}/approve`,'POST',{comments:cmt.value}));
+    btnReject.onclick  = async ()=> show(await api(`/api/tickets/${tid.value}/reject` ,'POST',{comments:cmt.value}));
+    btnGet.onclick     = async ()=> show(await api(`/api/tickets/${tid.value}`));
+</script>
+</body></html>

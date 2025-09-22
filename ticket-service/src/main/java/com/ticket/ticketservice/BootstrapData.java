@@ -1,6 +1,9 @@
 package com.ticket.ticketservice;
 
-import com.ticket.ticketservice.user.*;
+import com.ticket.ticketservice.entity.Employee;
+import com.ticket.ticketservice.entity.Role;
+import com.ticket.ticketservice.repository.EmployeeRepo;
+import com.ticket.ticketservice.repository.RoleRepo;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

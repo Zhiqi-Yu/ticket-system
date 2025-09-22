@@ -1,7 +1,7 @@
 package com.ticket.ticketservice.security;
 
-import com.ticket.ticketservice.user.Employee;
-import com.ticket.ticketservice.user.EmployeeRepo;
+import com.ticket.ticketservice.entity.Employee;
+import com.ticket.ticketservice.repository.EmployeeRepo;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;

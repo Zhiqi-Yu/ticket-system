@@ -1,5 +1,6 @@
-package com.ticket.ticketservice.user;
+package com.ticket.ticketservice.repository;
 
+import com.ticket.ticketservice.entity.Role;
 import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.Optional;
 
