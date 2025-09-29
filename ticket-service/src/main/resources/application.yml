@@ -13,3 +13,10 @@ spring:
     show-sql: false
     properties:
       hibernate.format_sql: false
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+storage:
+  upload-dir: uploads   # 相对项目根目录，会自动创建
