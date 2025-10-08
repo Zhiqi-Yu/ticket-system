@@ -17,6 +17,19 @@ spring:
     multipart:
       max-file-size: 10MB
       max-request-size: 10MB
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: yzq2236516175@gmail.com
+    password: dbva zmbc wwov towg
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+
 
 storage:
   upload-dir: uploads   # 相对项目根目录，会自动创建
