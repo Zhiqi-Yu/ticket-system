@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"><title>Manager Dashboard</title>
+    <style>
+        body{font-family:system-ui,Arial;max-width:980px;margin:24px auto;padding:0 12px}
+        header{display:flex;justify-content:space-between;align-items:center}
+        .row{display:flex;gap:12px;flex-wrap:wrap}
+        .card{border:1px solid #ddd;border-radius:8px;padding:12px;margin:8px 0;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+        .card h4{margin:.2rem 0 .6rem}
+        label{display:inline-flex;align-items:center;gap:6px;margin:4px 8px 4px 0}
+        input,button{padding:6px 8px}
+        table{width:100%;border-collapse:collapse;margin-top:8px}
+        th,td{border:1px solid #eee;padding:6px 8px;text-align:left}
+        .muted{color:#666}
+        .pill{display:inline-block;padding:2px 8px;border-radius:12px;background:#f3f3f3}
+        .error{color:#b00020;white-space:pre-wrap}
+    </style>
+</head>
+<body>
+<header>
+    <h3>Manager Dashboard</h3>
+    <nav><a href="/">Home</a> · <a href="http://localhost:8081/logout">Logout</a></nav>
+</header>
+
+<div class="card">
+    <h4>Operate</h4>
+    <div class="row">
+        <label>Ticket ID <input id="tid" style="width:120px"></label>
+        <label>Comments <input id="cmt" value="approved"></label>
+        <button id="btnApprove">Approve</button>
+        <button id="btnReject">Reject</button>
+        <button id="btnGet">Get</button>
+        <button id="btnListOpen">List OPEN</button>
+    </div>
+    <div class="muted">Click on a list row to quickly load the ticket details.</div>
+</div>
+
+<div id="err" class="error"></div>
+
+<div id="detail" class="card" style="display:none">
+    <h4>Ticket <span id="d-id" class="pill"></span></h4>
+    <div class="row">
+        <div><b>Status:</b> <span id="d-status"></span></div>
+        <div><b>Priority:</b> <span id="d-priority"></span></div>
+        <div><b>Category:</b> <span id="d-category"></span></div>
+    </div>
+    <div style="margin-top:6px"><b>Title:</b> <span id="d-title"></span></div>
+    <div style="margin-top:6px"><b>Description:</b> <span id="d-desc"></span></div>
+    <div class="muted" style="margin-top:6px">Updated: <span id="d-updated"></span></div>
+</div>
+
+<div id="listWrap" class="card" style="display:none">
+    <h4>OPEN Tickets</h4>
+    <table id="listTbl">
+        <thead><tr><th>ID</th><th>Title</th><th>Priority</th><th>Updated</th></tr></thead>
+        <tbody></tbody>
+    </table>
+</div>
+
+<script>
+    const API='http://localhost:8081';
+    const $=s=>document.querySelector(s);
+    const err=$('#err'); const tid=$('#tid'); const cmt=$('#cmt');
+
+    function fmt(x){ try{ if(!x)return '—'; const d=new Date(x); return isNaN(d)?x:d.toLocaleString(); }catch(e){return x||'—';} }
+    function showErr(e){ err.textContent = (typeof e==='string'?e:(e?.message||e)); }
+    function clearErr(){ err.textContent=''; }
+
+    async function api(path, method='GET', body){
+        const res = await fetch(API+path,{
+            method,
+            headers: body?{'Content-Type':'application/json'}:undefined,
+            body: body?JSON.stringify(body):undefined,
+            credentials:'include'
+        });
+        if(!res.ok){ const txt=await res.text(); throw new Error(method+' '+path+' → '+res.status+'\n'+txt); }
+        return res.json();
+    }
+    async function guard(role){
+        try{ const me=await api('/api/me'); if(!me.roles.includes(role)){ alert('Forbidden: need '+role); location.href='/'; return false;} return true;}
+        catch(e){ location.href='/'; return false;}
+    }
+
+    function renderTicket(t){
+        if(!t) return; $('#detail').style.display='block';
+        $('#d-id').textContent=t.id; $('#d-status').textContent=t.status;
+        $('#d-priority').textContent=t.priority; $('#d-category').textContent=t.category;
+        $('#d-title').textContent=t.title||'—'; $('#d-desc').textContent=t.description||'—';
+        $('#d-updated').textContent=fmt(t.updatedAt);
+        tid.value=t.id; localStorage.lastTicketId=t.id;
+    }
+    function renderList(list){
+        const wrap=$('#listWrap'); const tb=$('#listTbl tbody'); tb.innerHTML='';
+        (list||[]).forEach(t=>{
+            const tr=document.createElement('tr');
+            tr.innerHTML=`<td>${t.id}</td><td>${t.title||''}</td><td>${t.priority}</td><td>${fmt(t.updatedAt)}</td>`;
+            tr.onclick=async ()=>{ try{ renderTicket(await api(`/api/tickets/${t.id}`)); }catch(e){showErr(e);} };
+            tb.appendChild(tr);
+        });
+        wrap.style.display=(list&&list.length)?'block':'none';
+    }
+
+    // ---- events ----
+    (async ()=>{ if(!await guard('ROLE_MANAGER')) return; tid.value=localStorage.lastTicketId||''; })();
+
+    $('#btnApprove').onclick = async ()=>{ clearErr(); try{ renderTicket(await api(`/api/tickets/${tid.value}/approve`,'POST',{comments:cmt.value})); }catch(e){showErr(e);} };
+    $('#btnReject').onclick  = async ()=>{ clearErr(); try{ renderTicket(await api(`/api/tickets/${tid.value}/reject` ,'POST',{comments:cmt.value})); }catch(e){showErr(e);} };
+    $('#btnGet').onclick     = async ()=>{ clearErr(); try{ renderTicket(await api(`/api/tickets/${tid.value}`)); }catch(e){showErr(e);} };
+    $('#btnListOpen').onclick= async ()=>{ clearErr(); try{ renderList(await api('/api/tickets?status=OPEN')); }catch(e){showErr(e);} };
+</script>
+</body>
+</html>

@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><title>User Dashboard</title>
+  <style>
+    body{font-family:system-ui,Arial;max-width:980px;margin:24px auto;padding:0 12px}
+    header{display:flex;justify-content:space-between;align-items:center}
+    .row{display:flex;gap:12px;flex-wrap:wrap}
+    .card{border:1px solid #ddd;border-radius:8px;padding:12px;margin:8px 0;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+    .card h4{margin:.2rem 0 .6rem}
+    label{display:inline-flex;align-items:center;gap:6px;margin:4px 8px 4px 0}
+    input,select,button{padding:6px 8px}
+    table{width:100%;border-collapse:collapse;margin-top:8px}
+    th,td{border:1px solid #eee;padding:6px 8px;text-align:left}
+    .muted{color:#666}
+    .error{color:#b00020;white-space:pre-wrap}
+    .pill{display:inline-block;padding:2px 8px;border-radius:12px;background:#f3f3f3}
+  </style>
+</head>
+<body>
+<header>
+  <h3>User Dashboard</h3>
+  <nav><a href="/">Home</a> · <a href="http://localhost:8081/logout">Logout</a></nav>
+</header>
+
+<div class="card">
+  <h4>Create Ticket</h4>
+  <div class="row">
+    <label>Title <input id="title" value="Demo Ticket"></label>
+    <label>Description <input id="desc" value="just a test"></label>
+    <label>Priority
+      <select id="prio"><option>LOW</option><option selected>MEDIUM</option><option>HIGH</option></select>
+    </label>
+    <label>Category <input id="cat" value="IT"></label>
+    <button id="btnCreate">Create</button>
+  </div>
+  <div class="muted">After successful creation, the Ticket details will appear below and the ID will be automatically imported.</div>
+</div>
+
+<div class="card">
+  <h4>Attachment</h4>
+  <div class="row">
+    <label>Ticket ID <input id="tid" placeholder="id" style="width:120px"></label>
+    <input type="file" id="file">
+    <button id="btnUpload">Upload</button>
+    <button id="btnDownload">Download</button>
+  </div>
+</div>
+
+<div class="card">
+  <h4>Operate</h4>
+  <div class="row">
+    <button id="btnGet">Get</button>
+    <button id="btnClose">Close</button>
+    <button id="btnReopen">Reopen</button>
+    <button id="btnMy">My Tickets</button>
+    <button id="btnHistory">History</button>
+  </div>
+</div>
+
+<div id="err" class="error"></div>
+
+<div id="detail" class="card" style="display:none">
+  <h4>Ticket <span id="d-id" class="pill"></span></h4>
+  <div class="row">
+    <div><b>Status:</b> <span id="d-status"></span></div>
+    <div><b>Priority:</b> <span id="d-priority"></span></div>
+    <div><b>Category:</b> <span id="d-category"></span></div>
+  </div>
+  <div style="margin-top:6px"><b>Title:</b> <span id="d-title"></span></div>
+  <div style="margin-top:6px"><b>Description:</b> <span id="d-desc"></span></div>
+  <div class="muted" style="margin-top:6px">
+    <span>Created: <span id="d-created"></span></span> ·
+    <span>Updated: <span id="d-updated"></span></span>
+  </div>
+  <div class="muted" id="d-attach" style="margin-top:6px"></div>
+</div>
+
+<div id="listWrap" class="card" style="display:none">
+  <h4>My Tickets</h4>
+  <table id="listTbl">
+    <thead><tr><th>ID</th><th>Title</th><th>Status</th><th>Priority</th><th>Updated</th></tr></thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<div id="histWrap" class="card" style="display:none">
+  <h4>History</h4>
+  <table id="histTbl">
+    <thead><tr><th>When</th><th>Action</th><th>By</th><th>Comments</th></tr></thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<script>
+  const API='http://localhost:8081';
+  const $=s=>document.querySelector(s);
+  const err=$('#err'); const tid=$('#tid');
+
+  function fmt(x){ try{ if(!x)return '—'; const d=new Date(x); return isNaN(d)?x:d.toLocaleString(); }catch(e){return x||'—';} }
+  function showErr(e){ err.textContent = (typeof e==='string'?e:(e?.message||e)); }
+  function clearErr(){ err.textContent=''; }
+
+  async function api(path, method='GET', body){
+    const res = await fetch(API+path,{
+      method,
+      headers: body?{'Content-Type':'application/json'}:undefined,
+      body: body?JSON.stringify(body):undefined,
+      credentials:'include'
+    });
+    if(!res.ok){ const txt=await res.text(); throw new Error(method+' '+path+' → '+res.status+'\n'+txt); }
+    return res.json();
+  }
+
+  async function guard(role){
+    try{
+      const me = await api('/api/me');
+      if(!me.roles.includes(role)){ alert('Forbidden: need '+role); location.href='/'; return false; }
+      console.log('Signed in as', me.email, me.roles);
+      return true;
+    }catch(e){ location.href='/'; return false; }
+  }
+
+  function renderTicket(t){
+    if(!t) return;
+    $('#detail').style.display='block';
+    $('#d-id').textContent = t.id;
+    $('#d-status').textContent = t.status;
+    $('#d-priority').textContent = t.priority;
+    $('#d-category').textContent = t.category;
+    $('#d-title').textContent = t.title || '—';
+    $('#d-desc').textContent = t.description || '—';
+    $('#d-created').textContent = fmt(t.createdAt);
+    $('#d-updated').textContent = fmt(t.updatedAt);
+    $('#d-attach').textContent = t.attachmentPath ? ('Attachment saved: '+t.attachmentPath) : 'No attachment';
+    tid.value = t.id; localStorage.lastTicketId = t.id;
+  }
+
+  function renderList(list){
+    const wrap = $('#listWrap'); const tb = $('#listTbl tbody');
+    tb.innerHTML=''; (list||[]).forEach(t=>{
+      const tr=document.createElement('tr');
+      tr.innerHTML = `<td>${t.id}</td><td>${t.title||''}</td><td>${t.status}</td><td>${t.priority}</td><td>${fmt(t.updatedAt)}</td>`;
+      tr.onclick = async ()=>{ try{ const d=await api(`/api/tickets/${t.id}`); renderTicket(d);}catch(e){showErr(e);} };
+      tb.appendChild(tr);
+    });
+    wrap.style.display = (list && list.length) ? 'block' : 'none';
+  }
+
+  function renderHist(list){
+    const wrap = $('#histWrap'); const tb=$('#histTbl tbody');
+    tb.innerHTML=''; (list||[]).forEach(h=>{
+      const tr=document.createElement('tr');
+      tr.innerHTML = `<td>${fmt(h.actionAt)}</td><td>${h.action}</td><td>${(h.actorEmail||h.actor)||'—'}</td><td>${h.comments||''}</td>`;
+      tb.appendChild(tr);
+    });
+    wrap.style.display = (list && list.length) ? 'block' : 'none';
+  }
+
+  // ----- events -----
+  (async ()=>{
+    if(!await guard('ROLE_USER')) return;
+    tid.value = localStorage.lastTicketId || '';
+  })();
+
+  $('#btnCreate').onclick = async ()=>{
+    clearErr();
+    try{
+      const data = {title:$('#title').value, description:$('#desc').value, priority:$('#prio').value, category:$('#cat').value};
+      const t = await api('/api/tickets','POST',data);
+      renderTicket(t);
+    }catch(e){ showErr(e); }
+  };
+
+  $('#btnUpload').onclick = async ()=>{
+    clearErr();
+    try{
+      if(!tid.value) throw 'please input ticket id';
+      const f = $('#file').files[0]; if(!f) throw 'choose a file';
+      const fd = new FormData(); fd.append('file', f);
+      const r = await fetch(API+`/api/tickets/${tid.value}/attachment`, {method:'POST', body:fd, credentials:'include'});
+      if(!r.ok) throw new Error(await r.text());
+      renderTicket(await r.json());
+    }catch(e){ showErr(e); }
+  };
+
+  $('#btnDownload').onclick = ()=>{ if(tid.value) window.location = API+`/api/tickets/${tid.value}/attachment`; };
+
+  $('#btnGet').onclick = async ()=>{ clearErr(); try{ renderTicket(await api(`/api/tickets/${tid.value}`)); }catch(e){ showErr(e);} };
+  $('#btnClose').onclick = async ()=>{ clearErr(); try{ renderTicket(await api(`/api/tickets/${tid.value}/close` ,'POST',{comments:'ok'})); }catch(e){ showErr(e);} };
+  $('#btnReopen').onclick= async ()=>{ clearErr(); try{ renderTicket(await api(`/api/tickets/${tid.value}/reopen`,'POST',{comments:'need more work'})); }catch(e){ showErr(e);} };
+  $('#btnMy').onclick    = async ()=>{ clearErr(); try{ renderList(await api('/api/tickets')); }catch(e){ showErr(e);} };
+  $('#btnHistory').onclick=async ()=>{ clearErr(); try{ renderHist(await api(`/api/tickets/${tid.value}/history`)); }catch(e){ showErr(e);} };
+</script>
+</body>
+</html>
