@@ -18,6 +18,8 @@ import java.io.IOException;
 import java.util.Date;
 import java.util.List;
 
+import static java.util.Arrays.asList;
+
 @Service
 @Transactional
 public class TicketService {
@@ -106,26 +108,26 @@ public class TicketService {
     public Ticket get(Long id){ return ticketRepo.findById(id).orElseThrow(); }
 
 
-    // 已登录用户的我的工单
+    // My Tickets for the logged in user
     @PreAuthorize("isAuthenticated()")
     public List<Ticket> listMine(Authentication auth){
         return ticketRepo.findByCreatedByEmail(auth.getName());
     }
 
-    // 按状态列出
+    // List by Status
     @PreAuthorize("isAuthenticated()")
     public List<Ticket> listByStatus(TicketStatus status){
         return ticketRepo.findByStatus(status);
     }
 
-    // 历史
+    // history
     @PreAuthorize("isAuthenticated()")
     public List<TicketHistory> historyOf(Long id){
         Ticket t = ticketRepo.findById(id).orElseThrow();
         return t.getHistory();
     }
 
-    // 上传附件
+    // upload
     @PreAuthorize("hasRole('USER')")
     public Ticket uploadAttachment(Long id, MultipartFile file) throws IOException {
         Ticket t = ticketRepo.findById(id).orElseThrow();
@@ -135,12 +137,17 @@ public class TicketService {
         return t; // 事务结束会 flush
     }
 
-    // 供下载使用
+    // used for download
     @PreAuthorize("isAuthenticated()")
     public Resource loadAttachment(Long id){
         Ticket t = ticketRepo.findById(id).orElseThrow();
         if (t.getAttachmentPath()==null) throw new IllegalStateException("no attachment");
         return fileStorageService.loadAsResource(t.getAttachmentPath());
+    }
+
+    public List<Ticket> listOpenLike() {
+        return ticketRepo.findByStatusInOrderByUpdatedAtDesc(
+                asList(TicketStatus.OPEN, TicketStatus.REOPENED));
     }
 
 }

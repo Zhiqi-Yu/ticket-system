@@ -34,3 +34,5 @@ out/
 
 # Maven / Gradle 常见缓存
 .mvn/wrapper/maven-wrapper.jar
+
+*.yml

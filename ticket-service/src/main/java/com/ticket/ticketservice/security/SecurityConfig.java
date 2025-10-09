@@ -26,7 +26,7 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain filter(HttpSecurity http) throws Exception {
         return http
-                .cors(Customizer.withDefaults())          // 允许 8080 跨域
+                .cors(Customizer.withDefaults())          // Allow 8080 cross-domain
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/login", "/css/**", "/js/**").permitAll()
@@ -34,8 +34,8 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
                 .formLogin(f -> f
-                        .loginPage("/login").permitAll()        // 若用默认登录页可去掉这一行
-                        .defaultSuccessUrl("http://localhost:8080/", true) // 登录成功跳到 gateway
+                        .loginPage("/login").permitAll()        // use our login.html page
+                        .defaultSuccessUrl("http://localhost:8080/", true) // Login successfully jump to gateway
                 )
                 .logout(l -> l.logoutUrl("/logout")
                         .logoutSuccessUrl("http://localhost:8080/"))

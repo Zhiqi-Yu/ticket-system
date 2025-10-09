@@ -15,7 +15,7 @@ public class Employee {
     private String email;
 
     @Column(nullable = false)
-    private String password; // 存BCrypt
+    private String password; // save BCrypt
 
     private String department;
     private String project;
@@ -29,7 +29,7 @@ public class Employee {
     )
     private List<Role> roles = new ArrayList<>();
 
-    // getters/setters 省略可用 Lombok；这里直接保留 IDE 生成的
+    // getters/setters
     public Long getId(){ return id; }
     public String getName(){ return name; }
     public void setName(String name){ this.name = name; }

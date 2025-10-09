@@ -20,12 +20,12 @@ public class PdfService {
             doc.open();
             doc.add(new Paragraph("Ticket Summary"));
             doc.add(new Paragraph("ID: " + id));
-            doc.add(new Paragraph("Title: " + safe(title)));
+            doc.add(new Paragraph("Title: " + nz(title)));
             doc.add(new Paragraph("Status: " + status));
             doc.add(new Paragraph("Priority: " + priority));
-            doc.add(new Paragraph("Category: " + safe(category)));
-            doc.add(new Paragraph("Actor: " + safe(actorEmail)));
-            doc.add(new Paragraph("Comments: " + safe(comments)));
+            doc.add(new Paragraph("Category: " + nz(category)));
+            doc.add(new Paragraph("Actor: " + nz(actorEmail)));
+            doc.add(new Paragraph("Comments: " + nz(comments)));
             doc.add(new Paragraph("Created: " + createdAt));
             doc.add(new Paragraph("Updated: " + updatedAt));
             doc.close();
@@ -34,5 +34,5 @@ public class PdfService {
             throw new RuntimeException(e);
         }
     }
-    private String safe(String s){ return s==null? "": s; }
+    private static String nz(String s){ return s==null? "" : s; }
 }

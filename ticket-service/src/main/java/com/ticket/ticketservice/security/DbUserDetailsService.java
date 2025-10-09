@@ -20,7 +20,6 @@ public class DbUserDetailsService implements UserDetailsService {
         Employee e = repo.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("not found"));
 
-        // 关键：这里用 List<SimpleGrantedAuthority>
         List<SimpleGrantedAuthority> auth = e.getRoles().stream()
                 .map(r -> new SimpleGrantedAuthority("ROLE_" + r.getName()))
                 .toList();

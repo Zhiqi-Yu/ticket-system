@@ -1,92 +1,174 @@
 package com.ticket.ticketservice.notify;
 
-import com.ticket.ticketservice.entity.Ticket; // ← 你的 Ticket 就在 entity 包
+import com.ticket.ticketservice.entity.Ticket;
+import com.ticket.ticketservice.model.ActionRequest;
 import jakarta.mail.MessagingException;
-import lombok.RequiredArgsConstructor;
 import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.annotation.AfterReturning;
 import org.aspectj.lang.annotation.Aspect;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 @Aspect
 @Component
-@RequiredArgsConstructor // 若不用 Lombok，就删掉这行并手写构造器
 public class NotificationAspect {
 
-    private final EmailService emailService;
-    private final PdfService pdfService;
+    private final EmailService email;
+    private final PdfService pdf;
 
-    // ========== 创建后：发纯文本邮件 ==========
+    public NotificationAspect(EmailService email, PdfService pdf) {
+        this.email = email;
+        this.pdf = pdf;
+    }
+
+    // accept：notification.contacts.* or notification.inbox.*
+    @Value("${notification.contacts.user:${notification.inbox.user:}}")
+    private String userInbox;
+
+    @Value("${notification.contacts.manager:${notification.inbox.manager:}}")
+    private String managerInbox;
+
+    @Value("${notification.contacts.admin:${notification.inbox.admin:}}")
+    private String adminInbox;
+
+    @Value("${notification.send.on-create:true}")
+    private boolean sendOnCreate;
+    @Value("${notification.send.on-approve:true}")
+    private boolean sendOnApprove;
+    @Value("${notification.send.on-reject:true}")
+    private boolean sendOnReject;
+    @Value("${notification.send.on-resolve:true}")
+    private boolean sendOnResolve;
+
+    private static String nz(String s){ return s==null? "" : s; }
+    private static boolean isBlank(String s){ return s==null || s.isBlank(); }
+    private static boolean notBlank(String s){ return !isBlank(s); }
+
+    // ===== create, send to user and manager =====
     @AfterReturning(
             pointcut = "execution(* com.ticket.ticketservice.service.TicketService.create(..))",
-            returning = "ticket"
-    )
+            returning = "ticket")
     public void afterCreate(JoinPoint jp, Ticket ticket) {
-        if (ticket == null) return;
+        if (ticket == null || !sendOnCreate) return;
 
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        String fallback = (auth != null ? auth.getName() : null);
-        // 如果你的 Ticket 有 createdByEmail()，用它；没有就先发给当前登录人
-        String to = chooseNonBlank(getCreatedByEmailSafe(ticket), fallback, "you@example.com");
+        String body = """
+        --> User 
+        Ticket Created
 
-        String subject = "[Ticket Created] #" + ticket.getId();
-        String body = "Ticket created: " + safe(ticket.getTitle())
-                + " (priority " + ticket.getPriority() + ")";
+        ID: %s
+        Title: %s
+        Priority: %s
+        Status: %s
+        """.formatted(ticket.getId(), nz(ticket.getTitle()), ticket.getPriority(), ticket.getStatus());
 
-        emailService.sendText(to, subject, body);
+        if (notBlank(userInbox)) {
+            email.sendText(userInbox, "[Ticket Created] #"+ticket.getId(), body);
+        }
+        if (notBlank(managerInbox)) {
+            email.sendText(managerInbox, "[Ticket Pending Approval] #"+ticket.getId(),
+                    """
+                    --> Manager 
+                    A new ticket needs your approval
+          
+                    ID: %s
+                    Title: %s
+                    Priority: %s
+                    """.formatted(ticket.getId(), nz(ticket.getTitle()), ticket.getPriority()));
+        }
     }
 
-    // ========== 解决后：生成 PDF 并作为附件发送 ==========
+    // ===== approved, send to user =====
+    @AfterReturning(
+            pointcut = "execution(* com.ticket.ticketservice.service.TicketService.approve(..))",
+            returning = "ticket")
+    public void afterApprove(JoinPoint jp, Ticket ticket) {
+        if (ticket == null || !sendOnApprove || isBlank(userInbox)) return;
+
+        email.sendText(userInbox, "[Ticket Approved] #"+ticket.getId(),
+                """
+                --> User 
+                Your ticket was approved.
+        
+                ID: %s
+                Title: %s
+                """.formatted(ticket.getId(), nz(ticket.getTitle())));
+
+        // send to admin after approve
+        if (notBlank(adminInbox)) {
+            email.sendText(adminInbox,
+                    "[Action Required] Resolve Ticket #" + ticket.getId(),
+                    """
+                    --> Admin
+                    Ticket has been approved and is waiting for RESOLVE.
+            
+                    ID: %s
+                    Title: %s
+                    Priority: %s
+                    """.formatted(ticket.getId(), nz(ticket.getTitle()), ticket.getPriority()));
+        }
+    }
+
+    // ===== rejected, send to user =====
+    @AfterReturning(
+            pointcut = "execution(* com.ticket.ticketservice.service.TicketService.reject(..))",
+            returning = "ticket")
+    public void afterReject(JoinPoint jp, Ticket ticket) {
+        if (ticket == null || !sendOnReject || isBlank(userInbox)) return;
+
+        email.sendText(userInbox, "[Ticket Rejected] #"+ticket.getId(),
+                """
+                -- > User 
+                Your ticket was rejected.
+        
+                ID: %s
+                Title: %s
+                """.formatted(ticket.getId(), nz(ticket.getTitle())));
+    }
+
+    // ===== resolve, send to user and cc to admin =====
     @AfterReturning(
             pointcut = "execution(* com.ticket.ticketservice.service.TicketService.resolve(..))",
-            returning = "ticket"
-    )
+            returning = "ticket")
     public void afterResolve(JoinPoint jp, Ticket ticket) throws MessagingException {
-        if (ticket == null) return;
+        if (ticket == null || !sendOnResolve || isBlank(userInbox)) return;
 
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        String actor = (auth != null ? auth.getName() : "system@local");
-        String comments = ""; // 如果以后你有 resolution note，可以在这里填
-
-        byte[] pdf = pdfService.ticketSummary(
-                ticket.getId(),
-                safe(ticket.getTitle()),
-                ticket.getStatus().name(),
-                ticket.getPriority().name(),
-                /* category */ "",
-                actor,
-                comments,
-                ticket.getCreatedAt(),
-                ticket.getUpdatedAt()
+        String comments = "";
+        for (Object a : jp.getArgs()) {
+            if (a instanceof ActionRequest ar && ar.comments != null) {
+                comments = ar.comments;
+                break;
+            }
+        }
+        byte[] bytes = pdf.ticketSummary(
+                ticket.getId(), nz(ticket.getTitle()),
+                ticket.getStatus().name(), ticket.getPriority().name(),
+                ticket.getCategory(), "", comments,
+                ticket.getCreatedAt(), ticket.getUpdatedAt()
         );
 
-        String fallback = (auth != null ? auth.getName() : null);
-        String to = chooseNonBlank(getCreatedByEmailSafe(ticket), fallback, "you@example.com");
-
-        emailService.sendWithAttachment(
-                to,
+        email.sendWithAttachment(
+                userInbox,
                 "[Ticket Resolved] #" + ticket.getId(),
-                "Your ticket has been resolved. Please see the attached summary.",
-                pdf,
+                """
+                --> User 
+                Your ticket has been resolved.
+                
+                ID: %s
+                Title: %s
+                """.formatted(ticket.getId(), nz(ticket.getTitle())),
+                bytes,
                 "ticket-" + ticket.getId() + ".pdf"
         );
-    }
 
-    // ------- helpers -------
-    private static String safe(String s){ return s==null? "" : s; }
-
-    /** 如果你的实体没有 createdByEmail 字段，这里安全返回 null 即可 */
-    private static String getCreatedByEmailSafe(Ticket t) {
-        try {
-            // 如果 Ticket 有 getCreatedByEmail() 就用；没有会抛异常 → 返回 null
-            return (String) Ticket.class.getMethod("getCreatedByEmail").invoke(t);
-        } catch (Exception ignore) { return null; }
-    }
-
-    private static String chooseNonBlank(String... candidates) {
-        for (String c : candidates) if (c != null && !c.isBlank()) return c;
-        return null;
+         // cc to admin
+         if (notBlank(adminInbox)) {
+           email.sendWithAttachment(
+               adminInbox,
+               "[Ticket Resolved] #" + ticket.getId(),
+               "Ticket resolved (cc admin).",
+               bytes,
+               "ticket-" + ticket.getId() + ".pdf"
+           );
+         }
     }
 }

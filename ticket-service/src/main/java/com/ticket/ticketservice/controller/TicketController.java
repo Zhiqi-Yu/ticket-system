@@ -59,25 +59,35 @@ public class TicketController {
 
 
 
+//    @GetMapping(path = {"", "/"})
+//    public List<Ticket> list(@RequestParam(required=false) String status,
+//                             Authentication auth) {
+//        if (status != null) return service.listByStatus(TicketStatus.valueOf(status));
+//        return service.listMine(auth);
+//    }
     @GetMapping(path = {"", "/"})
-    public List<Ticket> list(@RequestParam(required=false) String status,
+    public List<Ticket> list(@RequestParam(required=false) TicketStatus status,
                              Authentication auth) {
-        if (status != null) return service.listByStatus(TicketStatus.valueOf(status));
-        return service.listMine(auth);
+        if (status != null){
+            if (status == TicketStatus.OPEN)
+            return service.listOpenLike();
+        }
+        return service.listByStatus(status);
     }
-    // 历史
+
+    // history
     @GetMapping("/{id}/history")
     public List<TicketHistory> history(@PathVariable Long id){
         return service.historyOf(id);
     }
 
-    // 上传附件（multipart）
+    // upload attachment
     @PostMapping(path="/{id}/attachment", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Ticket upload(@PathVariable Long id, @RequestParam("file") MultipartFile file) throws IOException {
         return service.uploadAttachment(id, file);
     }
 
-    // 下载附件
+    // download attachment
     @GetMapping("/{id}/attachment")
     public ResponseEntity<Resource> download(@PathVariable Long id){
         Resource r = service.loadAttachment(id);
@@ -85,5 +95,6 @@ public class TicketController {
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + r.getFilename() + "\"")
                 .body(r);
     }
+
 
 }

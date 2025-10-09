@@ -46,6 +46,9 @@
     </div>
     <div style="margin-top:6px"><b>Title:</b> <span id="d-title"></span></div>
     <div style="margin-top:6px"><b>Description:</b> <span id="d-desc"></span></div>
+    <div id="d-attach-row" style="margin-top:6px; display:none">
+        <b>Attachment:</b> <span id="d-attachment"></span>
+    </div>
     <div class="muted" style="margin-top:6px">Updated: <span id="d-updated"></span></div>
 </div>
 
@@ -82,12 +85,36 @@
     }
 
     function renderTicket(t){
-        if(!t) return; $('#detail').style.display='block';
-        $('#d-id').textContent=t.id; $('#d-status').textContent=t.status;
-        $('#d-priority').textContent=t.priority; $('#d-category').textContent=t.category;
-        $('#d-title').textContent=t.title||'—'; $('#d-desc').textContent=t.description||'—';
-        $('#d-updated').textContent=fmt(t.updatedAt);
-        tid.value=t.id; localStorage.lastTicketId=t.id;
+        if(!t) return;
+        $('#detail').style.display = 'block';
+
+        // basic info
+        $('#d-id').textContent       = t.id;
+        $('#d-status').textContent   = t.status;
+        $('#d-priority').textContent = t.priority;
+        $('#d-category').textContent = t.category;
+        $('#d-title').textContent    = t.title || '—';
+        $('#d-desc').textContent     = t.description || '—';
+        $('#d-updated').textContent  = fmt(t.updatedAt);
+
+        // Attachment download (show if available, hide if not)
+        const row = $('#d-attach-row');
+        const att = $('#d-attachment');
+        const url = `${API}/api/tickets/${t.id}/attachment`; // backend port 8081
+
+        // If your backend returns attachmentPath (recommended), use it to judge
+        if (t.attachmentPath && t.attachmentPath.length > 0) {
+            row.style.display = '';
+            att.innerHTML = `<a href="${url}" target="_blank" rel="noopener">Download</a>`;
+        } else {
+            // If this field is missing, it will not be displayed.
+            row.style.display = 'none';
+            att.textContent   = '';
+        }
+
+        // Facilitate quick positioning next time
+        tid.value = t.id;
+        localStorage.lastTicketId = t.id;
     }
     function renderList(list){
         const wrap=$('#listWrap'); const tb=$('#listTbl tbody'); tb.innerHTML='';

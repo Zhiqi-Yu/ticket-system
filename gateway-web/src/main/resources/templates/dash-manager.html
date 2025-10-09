@@ -33,7 +33,7 @@
         <button id="btnGet">Get</button>
         <button id="btnListOpen">List OPEN</button>
     </div>
-    <div class="muted">Click on a list row to quickly load the ticket details.</div>
+
 </div>
 
 <div id="err" class="error"></div>
@@ -47,6 +47,9 @@
     </div>
     <div style="margin-top:6px"><b>Title:</b> <span id="d-title"></span></div>
     <div style="margin-top:6px"><b>Description:</b> <span id="d-desc"></span></div>
+    <div id="d-attach-row" style="margin-top:6px; display:none">
+        <b>Attachment:</b> <span id="d-attachment"></span>
+    </div>
     <div class="muted" style="margin-top:6px">Updated: <span id="d-updated"></span></div>
 </div>
 
@@ -83,12 +86,37 @@
     }
 
     function renderTicket(t){
-        if(!t) return; $('#detail').style.display='block';
-        $('#d-id').textContent=t.id; $('#d-status').textContent=t.status;
-        $('#d-priority').textContent=t.priority; $('#d-category').textContent=t.category;
-        $('#d-title').textContent=t.title||'—'; $('#d-desc').textContent=t.description||'—';
-        $('#d-updated').textContent=fmt(t.updatedAt);
-        tid.value=t.id; localStorage.lastTicketId=t.id;
+        if(!t) return;
+        $('#detail').style.display = 'block';
+
+        // Same as the admin page
+        $('#d-id').textContent       = t.id;
+        $('#d-status').textContent   = t.status;
+        $('#d-priority').textContent = t.priority;
+        $('#d-category').textContent = t.category;
+        $('#d-title').textContent    = t.title || '—';
+        $('#d-desc').textContent     = t.description || '—';
+        $('#d-updated').textContent  = fmt(t.updatedAt);
+
+
+        const row = $('#d-attach-row');
+        const att = $('#d-attachment');
+        const url = `${API}/api/tickets/${t.id}/attachment`;
+
+
+        if (t.attachmentPath && t.attachmentPath.length > 0) {
+            row.style.display = '';
+            att.innerHTML = `<a href="${url}" target="_blank" rel="noopener">Download</a>`;
+        } else {
+
+            row.style.display = 'none';
+            att.textContent   = '';
+
+        }
+
+
+        tid.value = t.id;
+        localStorage.lastTicketId = t.id;
     }
     function renderList(list){
         const wrap=$('#listWrap'); const tb=$('#listTbl tbody'); tb.innerHTML='';
@@ -101,7 +129,10 @@
         wrap.style.display=(list&&list.length)?'block':'none';
     }
 
-    // ---- events ----
+
+
+
+// ---- events ----
     (async ()=>{ if(!await guard('ROLE_MANAGER')) return; tid.value=localStorage.lastTicketId||''; })();
 
     $('#btnApprove').onclick = async ()=>{ clearErr(); try{ renderTicket(await api(`/api/tickets/${tid.value}/approve`,'POST',{comments:cmt.value})); }catch(e){showErr(e);} };
